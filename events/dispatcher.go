@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/YuriyNasretdinov/social-net/protocol"
-	"github.com/YuriyNasretdinov/social-net/session"
+	"github.com/eelf/social-net/protocol"
+	"github.com/eelf/social-net/session"
 )
 
 const (

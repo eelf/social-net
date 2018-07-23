@@ -1,3 +1,22 @@
 The sources for youtube "writing social network in golang" series.
 
 Live demo available at http://vbambuke.ru/
+
+
+### Upload Database Structure
+    docker run --rm --network social -i postgres env PGPASSWORD=123 /usr/bin/psql -h postgres -U postgres -a < structure.sql
+
+### Verify
+    docker run --rm --network social -i -t postgres env PGPASSWORD=123 /usr/bin/psql -h postgres -U postgres -a
+    show databases - \l
+    use database - \c social
+    show tables - \dt
+
+
+### Download dependencies
+    go get github.com/BurntSushi/toml
+    go get github.com/bradfitz/gomemcache/memcache
+    go get github.com/lib/pq
+    go get golang.org/x/crypto/acme/autocert
+    go get golang.org/x/net/websocket
+

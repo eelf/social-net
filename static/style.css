@@ -367,3 +367,7 @@ body{
 		height: 20px;
 	}
 }
+
+.link {
+	cursor: pointer;
+}

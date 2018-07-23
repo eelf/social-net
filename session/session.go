@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/YuriyNasretdinov/social-net/config"
+	"github.com/eelf/social-net/config"
 	"github.com/bradfitz/gomemcache/memcache"
 )
 

@@ -1,3 +1,7 @@
+CREATE DATABASE social;
+
+\c social
+
 CREATE TABLE friend (
   id SERIAL PRIMARY KEY,
   user_id BIGINT,
@@ -62,6 +66,7 @@ CREATE TABLE hashtimeline (
   id SERIAL PRIMARY KEY,
   hash_id BIGINT,
   timeline_id BIGINT,
-  ts BIGINT,
-  INDEX(hash_id, ts)
+  ts BIGINT
 );
+
+CREATE INDEX idx_hashid_ts ON hashtimeline (hash_id, ts);

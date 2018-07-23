@@ -13,48 +13,23 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/YuriyNasretdinov/social-net/config"
-	"github.com/YuriyNasretdinov/social-net/db"
-	"github.com/YuriyNasretdinov/social-net/events"
-	"github.com/YuriyNasretdinov/social-net/handlers"
-	"github.com/YuriyNasretdinov/social-net/protocol"
-	"github.com/YuriyNasretdinov/social-net/session"
+	"github.com/eelf/social-net/config"
+	"github.com/eelf/social-net/db"
+	"github.com/eelf/social-net/events"
+	"github.com/eelf/social-net/handlers"
+	"github.com/eelf/social-net/protocol"
+	"github.com/eelf/social-net/session"
 	_ "github.com/cockroachdb/cockroach-go/crdb"
 	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/net/websocket"
+	"os"
 )
-
-func serveStatic(filename string, w http.ResponseWriter) {
-	fp, err := os.Open(filename)
-	if err != nil {
-		w.WriteHeader(404)
-		log.Printf("Could not find file: %s", filename)
-		return
-	}
-	defer fp.Close()
-
-	if strings.HasSuffix(filename, ".css") {
-		w.Header().Add("Content-type", "text/css")
-	} else if strings.HasSuffix(filename, ".js") {
-		w.Header().Add("Content-type", "application/javascript")
-	} else if strings.HasSuffix(filename, ".jpg") {
-		w.Header().Add("Content-type", "image/jpeg")
-	}
-
-	io.Copy(w, fp)
-}
-
-func StaticServer(w http.ResponseWriter, req *http.Request) {
-	serveStatic(req.URL.Path[len("/"):], w)
-}
 
 func avatarPath(id int) string {
 	idStr := fmt.Sprintf("%03d", id)
@@ -62,15 +37,15 @@ func avatarPath(id int) string {
 }
 
 func AvatarServer(w http.ResponseWriter, req *http.Request) {
-	userIdStr := strings.TrimSuffix(req.URL.Path[len("/avatars/"):], ".jpg")
-	userId, err := strconv.Atoi(userIdStr)
-	if err != nil {
-		w.WriteHeader(404)
-		w.Write([]byte("Could not parse user id"))
-		return
-	}
+	//userIdStr := strings.TrimSuffix(req.URL.Path[len("/avatars/"):], ".jpg")
+	//userId, err := strconv.Atoi(userIdStr)
+	//if err != nil {
+	//	w.WriteHeader(http.StatusNotFound)
+	//	w.Write([]byte("Could not parse user id"))
+	//	return
+	//}
 
-	serveStatic(filepath.Join(config.Conf.AvatarDir, avatarPath(userId)), w)
+	//serveStatic(filepath.Join(config.Conf.AvatarDir, avatarPath(userId)), w)
 }
 
 func loginUser(email, userPassword string) (sessionId string, err error) {
@@ -104,17 +79,24 @@ func loginUser(email, userPassword string) (sessionId string, err error) {
 }
 
 func LoginHandler(w http.ResponseWriter, req *http.Request) {
-	req.ParseForm()
-	email := req.Form.Get("email")
-	userPassword := req.Form.Get("password")
+	dec := json.NewDecoder(req.Body)
 
-	if email == "" || userPassword == "" {
-		fmt.Fprintf(w, "You must provide both email and password")
+	//bodyBytes, err2 := ioutil.ReadAll(req.Body)
+	//log.Println("LoginHandler", string(bodyBytes), err2)
+
+	form := struct{Email, Password string}{}
+	err := dec.Decode(&form)
+	enc := json.NewEncoder(w)
+
+	if err != nil || form.Email == "" || form.Password == "" {
+		enc.Encode(struct{Error string `json:"error"`}{"You must provide both email and password"})
 		return
 	}
 
-	sessionId, err := loginUser(email, userPassword)
+	sessionId, err := loginUser(form.Email, form.Password)
+	log.Println("loginUser=", sessionId, err)
 	if err != nil {
+		enc.Encode(struct{Error string `json:"error"`}{err.Error()})
 		return
 	}
 
@@ -127,14 +109,13 @@ func LoginHandler(w http.ResponseWriter, req *http.Request) {
 	}
 
 	http.SetCookie(w, cookie)
-	w.Header().Add("Location", "/")
-	w.WriteHeader(302)
+	enc.Encode(struct{Ok bool `json:"ok""`}{true})
 }
 
 func LogoutHandler(w http.ResponseWriter, req *http.Request) {
 	http.SetCookie(w, &http.Cookie{Name: "id"})
 	w.Header().Add("Location", "/")
-	w.WriteHeader(302)
+	w.WriteHeader(http.StatusFound)
 }
 
 func passwordHash(password string) string {
@@ -145,28 +126,6 @@ func passwordHash(password string) string {
 	io.WriteString(md, password)
 
 	return fmt.Sprintf("%x:%x", sh.Sum(nil), md.Sum(nil))
-}
-
-func serveAuthPage(sessionInfo *session.SessionInfo, w http.ResponseWriter) {
-	info := new(struct {
-		session.SessionInfo
-		FriendsRequestsCount int
-	})
-
-	info.Id = sessionInfo.Id
-	info.Name = sessionInfo.Name
-	info.FriendsRequestsCount = 0
-
-	friendsReqs, err := db.GetUserFriendsRequests(sessionInfo.Id)
-	if err != nil {
-		log.Println("Could not get friends requests: ", err.Error())
-	} else {
-		info.FriendsRequestsCount = len(friendsReqs)
-	}
-
-	if err := authTpl.Execute(w, info); err != nil {
-		fmt.Println("Could not render template: " + err.Error())
-	}
 }
 
 func getAuthUserInfo(cookies []*http.Cookie) *session.SessionInfo {
@@ -184,6 +143,26 @@ func getAuthUserInfo(cookies []*http.Cookie) *session.SessionInfo {
 	return nil
 }
 
+func InitHandler(w http.ResponseWriter, req *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+	data := struct {
+		session.SessionInfo
+		FriendsRequestsCount int
+	}{}
+	if info := getAuthUserInfo(req.Cookies()); info != nil {
+		data.Id = info.Id
+		data.Name = info.Name
+
+		friendsReqs, err := db.GetUserFriendsRequests(info.Id)
+		if err != nil {
+			log.Println("Could not get friends requests: ", err.Error())
+		} else {
+			data.FriendsRequestsCount = len(friendsReqs)
+		}
+	}
+	json.NewEncoder(w).Encode(data)
+}
+
 func IndexHandler(w http.ResponseWriter, req *http.Request) {
 	if req.Host == config.Conf.Host && req.TLS == nil {
 		w.Header().Add("Location", "https://"+req.Host+req.RequestURI)
@@ -191,13 +170,35 @@ func IndexHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// validate session
-	if info := getAuthUserInfo(req.Cookies()); info != nil {
-		serveAuthPage(info, w)
-		return
+	log.Println("IndexHandler", req.URL.Path)
+
+	filename := req.URL.Path[len("/"):]
+	if filename == "" {
+		filename = "index.html"
+	}
+	filename = "static/" + filename
+	if _, err := os.Stat(filename); os.IsNotExist(err) && filename != "static/index.html" {
+		filename = "static/index.html"
 	}
 
-	serveStatic("static/index.html", w)
+	fp, err := os.Open(filename)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		log.Printf("Could not find file: %s", filename)
+		return
+	}
+	defer fp.Close()
+
+	if strings.HasSuffix(filename, ".css") {
+		w.Header().Add("Content-type", "text/css")
+	} else if strings.HasSuffix(filename, ".js") {
+		w.Header().Add("Content-type", "application/javascript")
+	} else if strings.HasSuffix(filename, ".jpg") {
+		w.Header().Add("Content-type", "image/jpeg")
+	}
+
+	io.Copy(w, fp)
+
 }
 
 func sendError(seqId int, recvChan chan interface{}, message string) {
@@ -358,10 +359,6 @@ func WebsocketEventsHandler(ws *websocket.Conn) {
 	}
 }
 
-func RegisterHandler(w http.ResponseWriter, req *http.Request) {
-	serveStatic("static/register.html", w)
-}
-
 func registerUser(email, userPassword, name string) (err error, duplicate bool) {
 	_, err = db.RegisterStmt.Exec(email, passwordHash(userPassword), name)
 	if err != nil {
@@ -377,11 +374,11 @@ func CheckHandler(w http.ResponseWriter, req *http.Request) {
 	if err := db.TestStmt.QueryRow().Scan(&id); err != nil {
 		log.Println("Could not execute test query", err.Error())
 		fmt.Fprintf(w, "OK=0\n")
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(200)
+	w.WriteHeader(http.StatusOK)
 	fmt.Fprintf(w, "OK=1\n")
 }
 
@@ -392,6 +389,8 @@ func DoRegisterHandler(w http.ResponseWriter, req *http.Request) {
 	email := req.Form.Get("email")
 	userPassword := req.Form.Get("password")
 	userPassword2 := req.Form.Get("password2")
+
+	log.Println("DoRegisterHandler", name, email, userPassword, userPassword2)
 
 	if name == "" || email == "" || userPassword == "" || userPassword2 == "" {
 		fmt.Fprintf(w, "You must provide values for all the fields")
@@ -477,12 +476,11 @@ func main() {
 	go events.EventsDispatcher()
 
 	http.HandleFunc("/avatars/", AvatarServer)
-	http.HandleFunc("/static/", StaticServer)
 	http.HandleFunc("/check", CheckHandler)
 	http.HandleFunc("/login", LoginHandler)
 	http.HandleFunc("/logout", LogoutHandler)
-	http.HandleFunc("/register", RegisterHandler)
 	http.HandleFunc("/do-register", DoRegisterHandler)
+	http.HandleFunc("/init", InitHandler)
 	http.HandleFunc("/", IndexHandler)
 
 	go listen(config.Conf.Bind)

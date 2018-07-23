@@ -1,0 +1,29 @@
+version: '3.5'
+services:
+  social:
+    container_name: social
+    build: .
+    image: social
+    ports:
+      - '8000:80'
+    volumes:
+      - /Users/ezh/gopath/src/github.com/eelf/social-net:/root/go/src/github.com/eelf/social-net
+    networks:
+      - social
+  memcached:
+    image: memcached
+    container_name: memcached
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: '1'
+    networks:
+      - social
+  postgres:
+    image: postgres
+    container_name: postgres
+    environment:
+      POSTGRES_PASSWORD: '123'
+    networks:
+      - social
+networks:
+  social:
+    name: social

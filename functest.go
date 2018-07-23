@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/YuriyNasretdinov/social-net/protocol"
+	"github.com/eelf/social-net/protocol"
 	"golang.org/x/net/websocket"
 )
 

@@ -8,9 +8,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/YuriyNasretdinov/social-net/db"
-	"github.com/YuriyNasretdinov/social-net/events"
-	"github.com/YuriyNasretdinov/social-net/protocol"
+	"github.com/eelf/social-net/db"
+	"github.com/eelf/social-net/events"
+	"github.com/eelf/social-net/protocol"
 	"github.com/cockroachdb/cockroach-go/crdb"
 )
 

@@ -9,9 +9,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/YuriyNasretdinov/social-net/db"
-	"github.com/YuriyNasretdinov/social-net/events"
-	"github.com/YuriyNasretdinov/social-net/protocol"
+	"github.com/eelf/social-net/db"
+	"github.com/eelf/social-net/events"
+	"github.com/eelf/social-net/protocol"
 )
 
 const (
@@ -364,6 +364,7 @@ func (ctx *WebsocketCtx) ProcessGetProfile(req *protocol.RequestGetProfile) prot
 		return &protocol.ResponseError{UserMsg: "No such user", Err: err}
 	}
 
+	reply.UserId = req.UserId
 	reply.Name = userNames[userIdStr]
 
 	row, err := db.GetProfileStmt.Query(req.UserId)

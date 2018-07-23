@@ -190,6 +190,7 @@ type (
 		FriendsCount    uint64
 		IsFriend        bool
 		RequestAccepted bool
+		UserId          uint64
 	}
 
 	ReplyGeneric struct {
